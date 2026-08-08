@@ -13,6 +13,7 @@ Compile with Knit using R (version 4.4 or later), to generate the corresponding 
 the following R libraries are required: dplyr, ggplot2, knitr, grid, gridExtra, rstatix, ggpubr, patchwork, tidyr
        
 
+pdf versions of the html files are already included in the repository.
 
    
  
