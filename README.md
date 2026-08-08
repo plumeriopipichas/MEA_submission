@@ -4,7 +4,7 @@ The text files are contained in the /txts path. The code is written in R (.Rmd a
 Compile using R (version 4.4 or later), to generate the corresponding .html documents, in the following order:
 
 1. MEA_database_generation
-   generates the MEA_segments.csv database, along with the html output.
+   along with the html output, this generates/updates the csv files for each video (placed in /videos_db/) and the MEA_segments.csv database.
 
 2. 
    
