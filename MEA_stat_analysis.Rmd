@@ -1,0 +1,643 @@
+---
+title: 'Code report: statistical analysis of MEA synchronization data'
+author: "Federico Menéndez Conde et al"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+This report gives details of the statistical analysis performed , and the code used to generate it, for the manuscript "OPPOSITE MOVEMENT IN FEMALE CONTROLS  CHARACTERIZE FIRST ENCOUNTER INTERVIEWS VERSUS FEMALE BORDERLINE PERSONALITY DISORDER THERAPEUTIC INTERVIEWS" by Muñoz-Delgado et al. The aim of this study was to investigate the behavioral synchronization in a clinician-patient dyad versus a control group during a therapeutic/interview session. The following questions were considered:
+
+1) Magnitude of  the synchronization (patient following therapist):
+
+2) Which subject, patient or therapist, leads the movement with higher frequency.
+ 
+3) The sign of the correlation (movement of patient follows or is inhibited by the movement of the therapist). 
+	
+
+
+
+## The database
+
+The database _MEA_segments.csv_ was generated previously from data recorded by the MEA software applied to 19 videos of therapy sessions. Three regions of interest (roi) were considered: head, torso and legs. The videos were split in 1 minute segments, one for each roi. In each segment the maximum and minimum Spearman cross-correlations were recorded (with maximal lags of 15 seconds in each direction). Only the segments where the movement of both subjects was above the median is kept.     
+
+Upload the data and select the relevant variables for the present analysis. 
+
+
+## The database
+
+The database _MEA_segments.csv_ was generated previously from data recorded by the MEA software applied to 19 videos of therapy sessions. Three regions of interest (roi) were considered: head, torso and legs. The videos were split in 1 minute segments, one for each roi. In each segment the maximum and minimum Spearman cross-correlations were recorded (with maximal lags of 15 seconds in each direction). Only the segments where the movement of both subjects was above the median is kept.     
+
+Upload the data and select the relevant variables for the present analysis. 
+
+```{r,echo=TRUE,include=TRUE}
+library(dplyr)
+library(rstatix)
+library(ggplot2)
+library(ggpubr)
+library(knitr)
+library(patchwork)
+library(tidyr)
+
+MEA_segments<-read.csv("MEA_segments.csv")%>%
+  select(video,roi=zone,spearman_max,lag_spearman_max,spearman_min,lag_spearman_min,sex,type)
+```
+
+The data has a total of `r nrow(MEA_segments)` observations. 
+
+The variables _spearman_max_ and _spearman_min_ are the extreme values attained by the spearman cross correlations for each observation. The variables _lag_spearman_max and _lag_spearman_min_ give the time gap between the movement of each subject for which the extreme values were attained. A positive sign of the lag corresponds to the therapist movement preceding the patient.   
+
+## PART 1: Influence of diagnosis on the strength of the correlation
+
+For this part, the data was filtered to keep only the observations where the movement is led by the therapist. Also, lags with less to 1 second are discarded. This is done in order to avoid external noise that may give spurious simultaneous movement of the subjects. The data is split in two databases, in order to analyse the positive and negative correlations separately. 
+
+```{r} 
+x_pos<-which(MEA_segments$spearman_max>0&MEA_segments$lag_spearman_max>1)
+x_neg<-which(MEA_segments$spearman_min<0&MEA_segments$lag_spearman_min>1)
+
+MEA_poscor<-MEA_segments[x_pos, ]%>%
+  select(-spearman_min,-lag_spearman_min)
+MEA_negcor<-MEA_segments[x_neg, ]%>%
+  select(-spearman_max,-lag_spearman_max)
+MEA_segments<-MEA_segments[union(x_pos,x_neg), ]
+```
+
+
+This leaves a total of  `r nrow(MEA_segments)` remaining observations, corresponding to 1 minute segments with a fixed roi. Of those, some have only positive correlations, some have negative correlations and some have both. The numbers of each are given below. 
+
+
+```{r}
+print(c("Positive correlations",length(x_pos)))
+print(c("Negative correlations",length(x_neg)))
+print(c("Both types", length(intersect(x_pos,x_neg))))
+```
+
+They are distributed into the different 19 videos as follows:
+
+```{r}
+print("Segments with positive correlations per video")
+MEA_poscor <- group_by(MEA_poscor,video)
+segments_pos_videos <- reframe(MEA_poscor,segments=n())
+kable(segments_pos_videos)
+MEA_poscor<-ungroup(MEA_poscor)
+
+print("Segments with negative correlations per video")
+MEA_negcor <- group_by(MEA_negcor,video)
+segments_neg_videos <- reframe(MEA_negcor,segments=n())
+kable(segments_neg_videos)
+MEA_negcor<-ungroup(MEA_negcor)
+
+print("Complete database of positive correlations where the therapist leads")
+kable(MEA_poscor)
+
+print("Complete database of negative correlations where the therapist leads")
+kable(MEA_negcor)
+```
+
+```{r}
+MEA_poscor<-group_by(MEA_poscor,video,sex,type)
+Mean_pcorr_by_video<-reframe(MEA_poscor,mean_pc=mean(spearman_max),sd_pc=sd(spearman_max),segments_pos=n())
+MEA_poscor<-ungroup(MEA_poscor)
+
+kable(Mean_pcorr_by_video)
+```
+
+Mean extremal negative correlations, for each video:
+```{r}
+MEA_negcor<-group_by(MEA_negcor,video,sex,type)
+Mean_ncorr_by_video<-reframe(MEA_negcor,mean_nc=mean(spearman_min),sd_nc=sd(spearman_min),segments_neg=n())
+MEA_negcor<-ungroup(MEA_negcor)
+
+kable(Mean_ncorr_by_video)
+```
+
+
+And per group and type cohorots, including number of segments.
+```{r}
+MEA_poscor<-group_by(MEA_poscor,sex,type)
+Mean_pcorr<-reframe(MEA_poscor,mean_pc=mean(spearman_max),sd_pc=sd(spearman_max),segments_pos=n())
+MEA_poscor<-ungroup(MEA_poscor)
+
+MEA_negcor<-group_by(MEA_negcor,sex,type)
+Mean_ncorr<-reframe(MEA_negcor,mean_nc=mean(spearman_min),sd_nc=sd(spearman_min),segments_neg=n())
+MEA_negcor<-ungroup(MEA_negcor)
+
+MEA_mean_cors<-merge(Mean_pcorr,Mean_ncorr,by=c("sex","type"))
+
+kable(MEA_mean_cors)
+
+```
+
+Visualization:
+
+
+Positive correlations
+```{r}
+ggplot(Mean_pcorr_by_video,aes(x=sex,y=mean_pc,color=type))+geom_boxplot()+ggtitle("Positive correlations per video")
+```
+
+Negative correlations
+```{r}
+ggplot(Mean_ncorr_by_video,aes(x=sex,y=mean_nc,color=type))+geom_boxplot()+ggtitle("Negatitive correlations in videos")
+```
+
+
+
+# Statistical analysis for PART 1.
+
+Test for normality and homogeneity (positive correlations).
+
+```{r}
+model  <- lm(mean_pc ~ sex*type, data = Mean_pcorr_by_video)
+ggqqplot(residuals(model))
+shapiro_test(residuals(model))
+plot(model,1)
+Mean_pcorr_by_video %>% levene_test(mean_pc ~ sex*type)
+```
+
+
+Test for normality and homogeneity (negative correlations).
+```{r}
+model  <- lm(mean_nc ~ sex*type, data = Mean_ncorr_by_video)
+ggqqplot(residuals(model))
+shapiro_test(residuals(model))
+plot(model,1)
+Mean_ncorr_by_video %>% levene_test(mean_nc ~ sex*type)
+```
+
+
+Now, we look for outliers. For positive correlations:
+
+```{r}
+temp<-Mean_pcorr_by_video%>%group_by(sex,type)%>%identify_outliers(mean_pc)
+print(temp)
+```
+
+For negative correlations:
+
+```{r}
+temp<-Mean_ncorr_by_video%>%group_by(sex,type)%>%identify_outliers(mean_nc)
+print(temp)
+```
+
+
+All of the above, filtering by sex and taking type as a the independent variable.
+
+
+Females positive correlations
+```{r}
+datos <- filter(Mean_pcorr_by_video,sex=="Female")
+model  <- lm(mean_pc ~ type, data = datos)
+ggqqplot(residuals(model))
+shapiro_test(residuals(model))
+plot(model,1)
+Mean_pcorr_by_video %>% levene_test(mean_pc ~ type)
+```
+
+Females negative correlations
+```{r}
+datos <- filter(Mean_ncorr_by_video,sex=="Female")
+model  <- lm(mean_nc ~ type, data = datos)
+ggqqplot(residuals(model))
+shapiro_test(residuals(model))
+plot(model,1)
+Mean_ncorr_by_video %>% levene_test(mean_nc ~ type)
+```
+
+
+Males positive correlations
+```{r}
+datos <- filter(Mean_pcorr_by_video,sex=="Male")
+model  <- lm(mean_pc ~ type, data = datos)
+ggqqplot(residuals(model))
+shapiro_test(residuals(model))
+plot(model,1)
+Mean_pcorr_by_video %>% levene_test(mean_pc ~ type)
+```
+
+Males negative correlations
+```{r}
+datos <- filter(Mean_ncorr_by_video,sex=="Male")
+model  <- lm(mean_nc ~ type, data = datos)
+ggqqplot(residuals(model))
+shapiro_test(residuals(model))
+plot(model,1)
+Mean_ncorr_by_video %>% levene_test(mean_nc ~ type)
+```
+
+ANOVAS
+
+Perform one way ANOVAS, filtering for sex, and looking if type influences the _mean_pc_ and _mean_nc_ outcomes.
+
+ Positive correlations, male subjects
+``` {r}
+res.aov <- filter(Mean_pcorr_by_video,sex=='Male') %>% 
+  anova_test(mean_pc ~ type)
+print(res.aov)
+```
+
+ Positive correlations, female subjects
+``` {r}
+res.aov <- filter(Mean_pcorr_by_video,sex=='Female') %>% 
+  anova_test(mean_pc ~ type)
+print(res.aov)
+``` 
+
+Negative correlations, male subjects
+``` {r}
+res.aov <- filter(Mean_ncorr_by_video,sex=='Male') %>% 
+  anova_test(mean_nc ~ type)
+print(res.aov)
+```
+
+Negative correlations, male subjects (wilcox)
+``` {r}
+datos <- Mean_ncorr_by_video %>% 
+  filter(sex == "Male")
+
+res.wcx <- wilcox.test(mean_nc ~ type, exact = TRUE, data = datos)
+print(res.wcx)
+```
+
+Negative correlations, female subjects (wilcox)
+``` {r}
+datos <- Mean_ncorr_by_video %>% 
+  filter(sex == "Female")
+
+res.wcx <- wilcox.test(mean_nc ~ type, exact = TRUE, data = datos)
+print(res.wcx)
+```
+
+Negative correlations, female subjects (anova)
+``` {r}
+res.aov <- filter(Mean_ncorr_by_video,sex=='Female') %>% 
+  anova_test(mean_nc ~ type)
+print(res.aov)
+```
+
+## PART 2: who leads more often patient or therapist
+
+Upload the data and select the relevant variables for the present analysis. Add a column for the subject that leads, according to the sign of the lag. Add another column for the dominating sign of the correlation in the segment. 
+
+```{r, echo=TRUE}
+
+MEA_segments_leads <- read.csv("MEA_segments.csv") %>%
+  transmute(
+    video,
+    smax     = round(spearman_max, 4),
+    lag_max  = lag_spearman_max,
+    smin     = round(spearman_min, 4),
+    lag_min  = lag_spearman_min,
+    sex,
+    type
+  )
+x1<-which(MEA_segments_leads$smax+MEA_segments_leads$smin>0&
+          abs(MEA_segments_leads$lag_max)>1)
+x2<-which(MEA_segments_leads$smax+MEA_segments_leads$smin<0&
+          abs(MEA_segments_leads$lag_min)>1)
+
+MEA_segments_leads<-MEA_segments_leads[c(x1,x2), ]
+MEA_segments_leads$corr_type<-"positive"
+x<-which(MEA_segments_leads$smax<abs(MEA_segments_leads$smin))
+
+MEA_segments_leads$corr_type[x]<-"negative"
+MEA_segments_leads$leads<-" "
+for (i in 1:nrow(MEA_segments_leads)){
+    if ((MEA_segments_leads$corr_type[i]=="positive" &  MEA_segments_leads$lag_max[i]>1)
+        | (MEA_segments_leads$corr_type[i]=="negative" &  MEA_segments_leads$lag_min[i]>1)){
+      MEA_segments_leads$leads[i]<-"therapist"
+    }
+    if ((MEA_segments_leads$corr_type[i]=="positive" &  MEA_segments_leads$lag_max[i]<1)
+        | (MEA_segments_leads$corr_type[i]=="negative" &  MEA_segments_leads$lag_min[i]<1)){
+      MEA_segments_leads$leads[i]<-"patient"
+    }     
+}
+
+```
+
+
+Summarize the maximal and minimal correlations.
+```{r, echo=TRUE}
+quantile(MEA_segments_leads$smax,probs=seq(0,1,0.05))
+quantile(MEA_segments_leads$smin,probs=seq(0,1,0.05))
+
+```
+
+
+The data has a total of `r nrow(MEA_segments)` observations. 
+
+
+Distribution of the segments considered.
+By sign of the maximal correlation:
+```{r}
+MEA_segments_leads <- group_by(MEA_segments_leads,video,sex,type,corr_type)
+segments_videos_leads <- reframe(MEA_segments_leads,segments=n())
+MEA_segments_leads<-ungroup(MEA_segments_leads)
+
+segments_video_leads <- segments_videos_leads %>%      # video | corr_type | segments_pc
+  pivot_wider(                                        # ← tidyr
+    names_from  = corr_type,                          # columnas: positive / negative
+    values_from = segments,                        # valores: recuento
+    values_fill = 0                                   # si falta alguno, pon 0
+  ) %>% 
+  arrange(video)                                      # opcional: ordena por video
+
+
+segments_video_leads<-mutate(segments_video_leads,total=negative+positive)
+
+kable(segments_video_leads)
+```
+
+
+By leading subject:
+
+```{r}
+MEA_segments_leads <- group_by(MEA_segments_leads,video,sex,type,leads)
+segments_videos_leads <- reframe(MEA_segments_leads,segments=n())
+MEA_segments_leads<-ungroup(MEA_segments_leads)
+
+segments_video_leads <- segments_videos_leads %>%      # video | corr_type | segments_pc
+  pivot_wider(                                        # ← tidyr
+    names_from  = leads,                          # columnas: positive / negative
+    values_from = segments,                        # valores: recuento
+    values_fill = 0                                   # si falta alguno, pon 0
+  ) %>% 
+  arrange(video)                                      # opcional: ordena por video
+
+
+segments_video_leads<-mutate(segments_video_leads,total=therapist+patient,ratio=(patient-therapist)/total)
+
+kable(segments_video_leads)
+```
+
+
+By leading subject, only positive correlations:
+
+```{r}
+MEA_segments_leads_pos<-filter(MEA_segments_leads,smax>0.25)
+MEA_psegments_leads <- group_by(filter(MEA_segments_leads,corr_type=="positive"),
+                                video,sex,type,leads)
+psegments_videos_leads <- reframe(MEA_psegments_leads,segments=n())
+
+psegments_video_leads <- psegments_videos_leads %>%      
+  pivot_wider(                                        # ← tidyr
+    names_from  = leads,                          # columnas: positive / negative
+    values_from = segments,                        # valores: recuento
+    values_fill = 0                                   # si falta alguno, pon 0
+  ) %>% 
+  arrange(video)                                      # opcional: ordena por video
+
+
+psegments_video_leads<-mutate(psegments_video_leads,total=therapist+patient,ratio=(patient-therapist)/total)
+
+kable(psegments_video_leads)
+write.csv(psegments_video_leads,"Table_N4.csv",row.names = FALSE)
+```
+
+By leading subject, only negative correlations:
+
+```{r}
+MEA_segments_leads_neg<-filter(MEA_segments_leads,smin< -0.25)
+MEA_nsegments_leads <- group_by(filter(MEA_segments_leads_neg,corr_type=="negative"),
+                                video,sex,type,leads)
+nsegments_videos_leads <- reframe(MEA_nsegments_leads,segments=n())
+
+nsegments_video_leads <- nsegments_videos_leads %>%      
+  pivot_wider(                                        # ← tidyr
+    names_from  = leads,                          # columnas: positive / negative
+    values_from = segments,                        # valores: recuento
+    values_fill = 0                                   # si falta alguno, pon 0
+  ) %>% 
+  arrange(video)                                      # opcional: ordena por video
+
+
+nsegments_video_leads<-mutate(nsegments_video_leads,total=therapist+patient,ratio=(patient-therapist)/total)
+
+kable(nsegments_video_leads)
+write.csv(nsegments_video_leads,"Table_N5.csv",row.names = FALSE)
+```
+
+
+
+Boxplot visualization. 
+
+Positive correlations
+```{r}
+p1<-ggplot(psegments_video_leads,aes(x=sex,y=(patient-therapist)/(patient+therapist),color=type))+geom_boxplot()+ggtitle("Positive correlations per video")
+show(p1)
+```
+
+Negative correlations
+```{r}
+p2<-ggplot(nsegments_video_leads,aes(x=sex,y=(patient-therapist)/(patient+therapist),color=type))+geom_boxplot()+ggtitle("Negatitive correlations in videos")
+show(p2)
+```
+
+
+# Statistical analysis for PART 2.
+
+Anovas for positive correlations, controlled by gender
+``` {r}
+datos<-psegments_video_leads
+anova <- filter(datos,sex=='Female') %>% anova_test(ratio ~ type)
+print(anova)
+
+anova <- filter(datos,sex=='Male') %>% anova_test(ratio ~ type)
+print(anova)
+```
+
+
+Anovas for negative correlations, controlled by gender
+``` {r}
+datos<-nsegments_video_leads
+anova <- filter(datos,sex=='Female') %>% anova_test(ratio ~ type)
+print(anova)
+
+anova <- filter(datos,sex=='Male') %>% anova_test(ratio ~ type)
+print(anova)
+```
+
+
+Shapiro and Levene tests
+
+Positive correlations
+```{r}
+
+datos<-psegments_video_leads #positive correlations
+model  <- lm(ratio ~ sex*type, data = datos)
+ggqqplot(residuals(model))
+shapiro_test(residuals(model))
+plot(model,1)
+datos %>% levene_test(ratio ~ sex*type)#positive correlations
+```
+
+Negative correlations
+```{r}
+
+datos<-nsegments_video_leads #negative correlations
+model  <- lm(ratio ~ sex*type, data = datos)
+ggqqplot(residuals(model))
+shapiro_test(residuals(model))
+plot(model,1)
+datos %>% levene_test(ratio ~ sex*type) #negative correlations
+```
+
+Outliers. Positive correlations.
+```{r}
+datos<-psegments_video_leads
+temp<-datos%>%group_by(sex,type)%>%identify_outliers(ratio)
+print(temp)
+```
+
+
+Outliers. Negative correlations.
+```{r}
+datos<-nsegments_video_leads
+temp<-datos%>%group_by(sex,type)%>%identify_outliers(ratio)
+print(temp)
+```
+
+
+## PART 3: does the diagnosis affect the sign of the correlation
+
+Here, we look on whether the therapist movement is mirrored (positive correlation) or inhibited (negative correlation) by the patient. We start uploading and filtering the data to keep only the segments for which the therapist leads. 
+
+```{r}
+MEA_segments_sign <- read.csv("MEA_segments.csv") %>%
+  transmute(
+    video,
+    smax     = round(spearman_max, 4),
+    lag_max  = lag_spearman_max,
+    smin     = round(spearman_min, 4),
+    lag_min  = lag_spearman_min,
+    sex,
+    type
+  )
+x1<-which(MEA_segments_sign$smax+MEA_segments_sign$smin>0&
+            abs(MEA_segments_sign$lag_max)>1)
+x2<-which(MEA_segments_sign$smax+MEA_segments_sign$smin<0&
+            abs(MEA_segments_sign$lag_min)>1)
+
+MEA_segments_sign<-MEA_segments_sign[c(x1,x2), ] #cut when lags of extremal correlations is less than 1 second
+
+
+MEA_segments_sign$corr_type<-"positive"
+x<-which(MEA_segments_sign$smax<abs(MEA_segments_sign$smin))
+MEA_segments_sign$corr_type[x]<-"negative"
+
+
+MEA_segments_sign$leads<-" "
+for (i in 1:nrow(MEA_segments_sign)){
+  if ((MEA_segments_sign$corr_type[i]=="positive" &  MEA_segments_sign$lag_max[i]>1)
+      | (MEA_segments_sign$corr_type[i]=="negative" &  MEA_segments_sign$lag_min[i]>1)){
+    MEA_segments_sign$leads[i]<-"therapist"
+  }
+  if ((MEA_segments_sign$corr_type[i]=="positive" &  MEA_segments_sign$lag_max[i]<1)
+      | (MEA_segments_sign$corr_type[i]=="negative" &  MEA_segments_sign$lag_min[i]<1)){
+    MEA_segments_sign$leads[i]<-"patient"
+  }     
+}
+
+MEA_leads_tp<-filter(MEA_segments_sign,leads=="therapist")%>%
+  filter(max(smax,abs(smin))>0.15)%>% # Only segments where therapist leads
+  select(-leads)    
+```
+
+The resulting database _MEA_leads_tp_ consists of `r nrow(MEA_leads_tp)` observations (1 minute segments). Next, for each video we count the number of segments with positive and negative dominant correlations. We define the variable _mean_corr_ as follows: for each segment observed, take the sum of the maximal and minimal correlations, and take the average of this results across all the segments for each video.  
+
+
+```{r} 
+MEA_leads_tp <- group_by(MEA_leads_tp,video,sex,type,corr_type)
+segments_corr_sign <- reframe(MEA_leads_tp,segments=n())
+MEA_leads_tp<-ungroup(MEA_leads_tp)
+segments_corr_sign <- segments_corr_sign  %>%      # create table with number of positive/negative by video
+   pivot_wider(                                        
+     names_from  = corr_type,                         
+     values_from = segments,                        
+     values_fill = 0                                   
+   ) %>% 
+   arrange(video)%>%                                     
+   mutate(total=negative+positive,ratio=(positive-negative)/total)
+            
+MEA_leads_tp<-group_by(MEA_leads_tp,video,sex,type)
+MEA_corr_sign<-reframe(MEA_leads_tp,mean_corr=sum(smax+smin)/n())%>%
+   select(video,mean_corr)
+MEA_leads_tp<-ungroup(MEA_leads_tp)
+ 
+MEA_corr_sign<-merge(segments_corr_sign,MEA_corr_sign,by="video")%>%
+  select(-ratio)
+MEA_corr_sign$type<-as.factor(MEA_corr_sign$type)
+``` 
+
+
+
+``` {r}
+kable(MEA_corr_sign)
+``` 
+
+Frequency of negative and positive correlations for each group
+``` {r}
+MEA_leads_tp<-group_by(MEA_leads_tp,sex,type,corr_type)
+MEA_which_sign<-reframe(MEA_leads_tp,segments=n())
+MEA_leads_tp<-ungroup(MEA_leads_tp)
+
+kable(MEA_which_sign)
+``` 
+
+
+# Statistical analysis for PART 3.
+
+Separate lists by gender
+``` {r}
+MEA_fsign_freq<-filter(MEA_which_sign,sex=="Female")%>%
+  select(-sex)
+
+MEA_msign_freq<-filter(MEA_which_sign,sex=="Male")%>%
+  select(-sex)
+
+
+MEA_fsign<-filter(MEA_corr_sign,sex=="Female")%>%
+  select(-sex)
+
+MEA_msign<-filter(MEA_corr_sign,sex=="Male")%>%
+  select(-sex)
+``` 
+
+Shapiro and Levene tests
+``` {r}
+datos<-MEA_fsign  #shapiro and levene tests for female groups
+model  <- lm(mean_corr ~ type, data = datos)
+ggqqplot(residuals(model))
+print(shapiro_test(residuals(model)))
+plot(model,1)
+lev<-datos %>% levene_test(mean_corr ~ type)
+print(c("levene females",lev))
+
+datos<-MEA_msign  #shapiro and levene tests for male groups
+model  <- lm(mean_corr ~ type, data = datos)
+ggqqplot(residuals(model))
+print(shapiro_test(residuals(model)))
+plot(model,1)
+lev<-datos %>% levene_test(mean_corr ~ type)
+print(c("levene males",lev))
+``` 
+
+
+Anovas for mean_corr
+``` {r}
+anova <- MEA_fsign %>% anova_test(mean_corr ~  type) #female cohort
+
+print(anova)
+
+anova <- MEA_msign %>% anova_test(mean_corr ~  type) #male cohort
+
+print(anova)
+``` 
+
+
+
