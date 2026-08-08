@@ -1,0 +1,197 @@
+---
+title: "Database generation from the MEA data."
+author: "F. Menéndez Conde et al"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE,echo=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+source("MEA_functions.R")
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(gridExtra)   
+library(grid)       
+#library(kableExtra)
+```
+
+```{r, include=FALSE,echo=TRUE}
+d<-1
+zones <- c("head","torso","legs")
+rois <- c(paste(zones,"patient",sep="_"),paste(zones,"therapist",sep="_"))
+logbook <- read.csv("logbook.csv",encoding = "UTF-8")
+lmax = 450
+```
+
+## Introduction
+
+Here we present the code that generates the synchronization data between the 19 dyads from the Motion Energy Analysis (MEA) raw data.  In each case, six regions of interest (ROI) are considered, three for each subject: head, torso and legs. 
+The final outcome is the file _MEA_segments.csv_, which contains all the data to be used for the subsequent statistical analysis. 
+
+Each video is partitioned into `r 60*d` second periods. The ones with high movement of both subjects and the same ROI are registered. Cross correlations are performed and visualized for those registered periods. 
+
+
+## Set-up. 
+
+
+```{r completa, include=FALSE,echo=TRUE,cache=TRUE}
+ completa <- list()
+ dummy<-1
+ for (v in 1:length(logbook$file)){
+     video <- paste(logbook$file[v],".txt",sep="")
+     first_cut <- (logbook$sampling_rate[v])*(logbook$inicial_cut[v])
+     last_cut <- (logbook$sampling_rate[v])*(logbook$final_cut[v])
+     x <- arma_base(video,first_cut,last_cut)
+     nombre <- substr(video,1,nchar(video)-4)
+     path <- paste("bases_videos_csv/",nombre,".csv",sep = "")
+     write.csv(x,path,row.names = FALSE)
+     completa[[logbook$file[v]]] <- x
+     print(c(video,nrow(x)))
+ }
+ 
+ temp<-list()
+ for(j in names(completa)){
+     print(j)
+     temp<-c(temp,nrow(completa[[j]]))
+ }
+```
+
+
+Basic information of the `r dim(logbook)[1]` videos is registered in table _logbook_.    
+
+```{r logbook, echo=FALSE}
+kable(logbook,format="pandoc")
+```
+
+The list _completa_ contains the data for each of the videos listed in _logbook_. As an example, _completa[['Vid12']]_ is a data set with `r nrow(completa[['Vid12']])` observations. At a sampling rate of 30 frames per second, this corresponds to a duration of
+`r round(nrow(completa[['Vid12']])/(30*60),2)` minutes. We show a small fraction (30 entries, corresponding to only 1.5 seconds) to illustrate. 
+
+```{r, echo=FALSE}
+kable(completa[['Vid12']][1115:1159, ],caption='Entries for one second of the Vid12 raw data.',format="pandoc")
+```
+
+#  Short lapses with high movement.
+
+```{r echo=TRUE}
+quantile = 0.5
+```
+
+Videos are partitioned into `r 60` second segments. Below we show the number of segments of each of the videos.
+
+```{r}
+#cuantos_frames<-numeric()
+for (i in names(completa)){
+    partes<-length(partition_data(completa[[i]],minutes=1))
+    #cuantos_frames<-c(cuantos_frames,partes)
+    print(paste(i,partes,"frames"))
+}
+```
+
+The mean amount of movement for each roi is calculated (as recorded by the MEA software). If the means of both the therapist and patient are in the top `r 100-100*quantile` percent, the corresponding data for that roi and time is registered in the list _lista_mov_altos_. 
+
+
+```{r echo=TRUE}
+lista_mov_altos <- data.frame(matrix(ncol = 15,nrow = 0))  
+
+for (v in names(completa)){
+    lista_mov_altos <- rbind(lista_mov_altos,
+          crea_lista_movs(partition_data(completa[[v]],minutes=d),
+                          nombre_video = v,q=quantile,lagmax=lmax))    
+}
+
+lista_mov_altos<-filter(lista_mov_altos,!leads=="-")
+
+ids <- data.frame(id=1:nrow(lista_mov_altos))
+lista_mov_altos<-cbind(ids,lista_mov_altos)
+
+lista_mov_altos$se_mueve_mas = "-"
+
+for (k in 1:nrow(lista_mov_altos)){
+  if (lista_mov_altos$mov_patient[k]>1.1*(lista_mov_altos$mov_therapist[k])){
+      lista_mov_altos$se_mueve_mas[k]="patient"
+  }    
+  if (lista_mov_altos$mov_patient[k]< 0.9*(lista_mov_altos$mov_therapist[k])){
+      lista_mov_altos$se_mueve_mas[k]="therapist"    
+  }
+}
+```
+
+Adding a column that indicates whether the cross correlations are dominated by positive or negative correlations.
+
+```{r echo=TRUE}
+lista_mov_altos$correl<-"-"
+x<-which(lista_mov_altos$spearman_max>abs(lista_mov_altos$spearman_min))
+y<-which(lista_mov_altos$spearman_max<abs(lista_mov_altos$spearman_min))
+lista_mov_altos$correl[x]<-"positive"
+lista_mov_altos$correl[y]<-"negative"
+MEA_segments<-lista_mov_altos
+```
+
+Below, we show the database _MEA_segments_ containing `r nrow(MEA_segments)` segments having high mobility for both subjects. Cross correlations were evaluated and registered for each of these segments. To determine which subject is leading, the sign of the lag with maximum correlation is considered (positive when therapist leads). We show the first few entries, and save the whole database in is saved in the file _MEA_segments.csv_ :
+
+```{r, echo=TRUE}
+kable(head(MEA_segments))
+write.csv(MEA_segments,"MEA_segments.csv",row.names = FALSE)
+```
+
+
+In the following table we show the frequency in this table for each video and roi. 
+
+```{r, echo=TRUE}
+lista_mov_altos<-group_by(MEA_segments,video,zone)
+kable(summarise(lista_mov_altos,frequency=n()))
+```
+
+Total by video
+```{r, echo=TRUE}
+lista_mov_altos<-group_by(MEA_segments,video)
+kable(summarise(lista_mov_altos,frequency=n()))
+```
+
+The totals for each roi:
+
+```{r, echo=TRUE}
+lista_mov_altos<-group_by(MEA_segments,zone)
+kable(summarise(lista_mov_altos,frequency=n()))
+```
+
+And for roi and control/diagnosed groups:
+
+```{r, echo=TRUE}
+lista_mov_altos<-group_by(MEA_segments,sex,type,zone)
+kable(summarise(lista_mov_altos,frequency=n()))
+write.csv(summarise(lista_mov_altos,frequency=n()),"Tabla_n2.csv",row.names=FALSE)
+```
+
+```{r, echo=TRUE}
+p1<-corr_cruzadas(361,que_lista = lista_mov_altos)
+p2<-corr_cruzadas(222,que_lista = lista_mov_altos)
+p3<-corr_cruzadas(245,que_lista = lista_mov_altos)
+p4<-corr_cruzadas(203,que_lista = lista_mov_altos)
+
+png(
+  filename = "FigureM1v2_all.png",
+  width     = 1950,          # pixels (adjust as you like)
+  height    = 3200,
+  res       = 200            # dots per inch
+)
+
+caption_grob <- textGrob(
+  "Figure M1: from top to bottom: dominant positive correlation with therapist lead, dominant positive with patient lead,
+  dominant negative with patient lead, dominant negative with therapist lead.",
+  gp = gpar(fontsize=11),
+  just = "center"
+)
+
+grid.arrange(
+  p1, p2, p3, p4,
+  nrow = 4,
+  top = textGrob(
+    "Examples of Cross‑correlations (patient vs therapist)",
+    gp = gpar(fontsize = 18, fontface = "bold")
+  )
+)
+
+dev.off()
+```

@@ -1,0 +1,20 @@
+file,sampling_rate,patient,date,inicial_cut,final_cut,total_span_min,trimmed_span_min,InterviewType,sex,classification,name,therapist,DX
+Vid0,30,1,24/04/2012,13,0,40.05,40.05,E,Male,Treatment,Enrique:TLP/TNP,Iván,Longitud/A
+Vid12,30,71,23/01/2014,9,0,22.07,22.07,N,Female,Treatment,Iraní:TLP,Iván,B
+Vid13,30,134,02/09/2014,8,0,37.02,37.02,N,Female,Treatment,Solverg:TLP/TNP,Iván,B
+Vid14,30,870,20/10/2015,10,0,40.01,40,S,Female,Control,Yanelle:control,Iván,C
+Vid15,30,160,19/08/2015,8,0,43.78,43.77,S,Female,Control,Mujer:control,Iván,C
+Vid16,30,810,06/08/2014,7,0,37.5,37.5,N,Female,Treatment,Sandra:TLP,Iván,B
+Vid17,30,573,01/12/2015,8,0,25.92,25.92,S,Female,Control,Mujer:? Control,Iván,C
+Vid18,30,847,12/08/2015,10,0,36.73,36.73,S,Male,Control,Sergio:control,Iván,D
+Vid19,30,403,25/08/2014,9,0,37.35,37.34,N,Male,Treatment,Erick:TLP,Iván,A
+Vid20,30,377,19/08/2014,7,0,44.6,44.6,N,Female,Treatment,Lydia:TLP,Iván,B
+Vid21,30,746,25/08/2014,12,0,34.06,34.05,N,Female,Treatment,AndreaAlejandra:TLP,Iván,B
+Vid22,30,533,17/11/2015,5,7,24.77,24.76,S,Female,Control,Dafne:control,Iván,C
+Vid23,30,291,13/08/2014,13,0,42.04,42.03,N,Female,Treatment,Berenice:TLP/TNP,Iván,B
+Vid24,30,374-1,11/09/2015,8,11,52.18,52.17,S,Female,Control,VivianaTLP,Andrés,B
+Vid25,30,202-1,20/11/2015,5,7,30.56,30.56,S,Male,Control,Benito: CTRL,Andrés,D
+Vid26,30,315-1,20/02/2014,165,49,54.38,54.26,N,Female,Treatment,PatriciaMaestra: TLP,Andrés,B
+Vid27,30,296-1,20/02/2014,45,69,49.25,49.19,N,Male,Treatment,JuanOftalmól:txDistímico,Andrés,A
+Vid28,30,AM_1-1,,26,150,49.05,48.95,N,Female,Treatment,ÁngelaEnfermera: TLP,Andrés,B
+Vid29,30,LL_2-1,,47,41,42.44,42.39,N,Female,Treatment,LauraContadora: TLP,Andrés,B
