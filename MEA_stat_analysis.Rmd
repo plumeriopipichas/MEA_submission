@@ -1,8 +1,8 @@
 ---
 title: 'Code report: statistical analysis of MEA synchronization data'
-author: "Federico Menéndez Conde et al"
+author: " "
 date: "`r Sys.Date()`"
-output: html_document
+output: pdf_document
 ---
 
 

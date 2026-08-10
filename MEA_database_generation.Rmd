@@ -1,8 +1,8 @@
 ---
 title: "Database generation from the MEA data."
-author: "F. Menéndez Conde et al"
+author: " "
 date: "`r Sys.Date()`"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE,echo=TRUE}
@@ -44,7 +44,7 @@ Each video is partitioned into `r 60*d` second periods. The ones with high movem
      last_cut <- (logbook$sampling_rate[v])*(logbook$final_cut[v])
      x <- arma_base(video,first_cut,last_cut)
      nombre <- substr(video,1,nchar(video)-4)
-     path <- paste("bases_videos_csv/",nombre,".csv",sep = "")
+     path <- paste("videos_db/",nombre,".csv",sep = "")
      write.csv(x,path,row.names = FALSE)
      completa[[logbook$file[v]]] <- x
      print(c(video,nrow(x)))
